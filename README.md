@@ -1,4 +1,4 @@
-# 环境说明：
+# 环境
 
 - springboot3.0
 - spring.cloud.alibaba 2022.0.0.0-RC2
@@ -13,61 +13,71 @@
 
 我们正在做的项目设计了如下服务
 
-A
-B
-C
-D
-E
-F
-...，
+- A
+- B
+- C
+- D
+- E
+- F
+- ...，
+
 该项目适配了租户权限管理系统，租户权限管理系统只有如下服务：
 
-M
+- M
+
 服务A、B、C、D、E、F通过Feign远程调用来与M做集成
 
 服务A、B、C、D、E、F以及M公用同一个网关gateway
 
 因此A、B、C、D、E、F以及M和gateway，必须在同一nacos命名空间下，假如都在测试环境命名空间
 
-前后端联调：
+# 调研
+
+如何方便的前后端联调：
+
 由于在开发阶段，频繁的通过部署测试环境来测试功能正常，是效率十分低的，
 
 因此我们最好是先在本地进行前后端联调，最后在部署测试环境，有如下两种方式：
 
 方式1
+
 前端绕开网关，通过ip:port/requestPath的方式直连本地的服务A、B、C、D、E、F
 
-这种方式的好处是：
+这种方式的好处是：由于绕开了网关，因此前端访问接口的时候不用加服务前缀，以如下形式直连具体的后端服务
+- ip:Aport/requestPath
+- ip:Bport/requestPath
+- ip:Cport/requestPath
+- ip:Dport/requestPath
+- ip:Eport/requestPath
+- ip:Fport/requestPath 
 
-由于绕开了网关，因此前端访问接口的时候不用加服务前缀，以如下形式直连具体的后端服务
-ip:Aport/requestPath
-ip:Bport/requestPath
-ip:Cport/requestPath
-ip:Dport/requestPath
-ip:Eport/requestPath
-ip:Fport/requestPath 这种方式不好，原因是：
-后端A、B、C、D、E、F服务众多，涉及不同类别的接口的时候，前端要频繁修改port
+这种方式不好，原因是：后端A、B、C、D、E、F服务众多，涉及不同类别的接口的时候，前端要频繁修改port
+
 方式2
+
 我们希望前端依旧通过测试环境网关访问后端服务A、B、C、D、E、F，由于测试环境网关独一份，因此对于前端来说，ip和port都是固定的，根本不用修改
 
 前端请求先加一层壳/api，再加上第二层壳即不同的服务前缀，如/AService：
 
-nginx-ip:nginx-port/api/AService/requestPath
-nginx-ip:nginx-port/api/BService/requestPath
-nginx-ip:nginx-port/api/CService/requestPath
-nginx-ip:nginx-port/api/DService/requestPath
-nginx-ip:nginx-port/api/EService/requestPath
-nginx-ip:nginx-port/api/FService/requestPath
+- nginx-ip:nginx-port/api/AService/requestPath
+- nginx-ip:nginx-port/api/BService/requestPath
+- nginx-ip:nginx-port/api/CService/requestPath
+- nginx-ip:nginx-port/api/DService/requestPath
+- nginx-ip:nginx-port/api/EService/requestPath
+- nginx-ip:nginx-port/api/FService/requestPath
+
 经过nginx去掉第一层壳/api,并转发给网关
 
-gateway-ip:gateway-port/AService/requestPath
-gateway-ip:gateway-port/BService/requestPath
-gateway-ip:gateway-port/CService/requestPath
-gateway-ip:gateway-port/DService/requestPath
-gateway-ip:gateway-port/EService/requestPath
-gateway-ip:gateway-port/FService/requestPath
+- gateway-ip:gateway-port/AService/requestPath
+- gateway-ip:gateway-port/BService/requestPath
+- gateway-ip:gateway-port/CService/requestPath
+- gateway-ip:gateway-port/DService/requestPath
+- gateway-ip:gateway-port/EService/requestPath
+- gateway-ip:gateway-port/FService/requestPath
+
 经过网关去掉第二层壳，如/AService，并转发给具体的后端服务
 
+```yaml
 spring:
   cloud:
     gateway:
@@ -79,12 +89,15 @@ spring:
         filters:
 #        - StripPrefix=1 # 移除路径中的第一个段（即/AService）
         - RewritePath=/AService/(?<segment>.*), /$\{segment} # 截断路径中的/AService/部分
+```
+
 a-service服务下的requestPath
 b-service服务下的requestPath
 c-service服务下的requestPath
 d-service服务下的requestPath
 e-service服务下的requestPath
 f-service服务下的requestPath
+
 由于服务前缀，无论是在测试环境，还是在本地联调，都应该是相同的，因此方式2是最方便的，也是最贴近线上测试环境的本地联调方案
 
 ![gateway.png](./pic/gateway.png)
