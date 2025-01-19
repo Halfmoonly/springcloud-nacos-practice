@@ -91,13 +91,6 @@ spring:
         - RewritePath=/AService/(?<segment>.*), /$\{segment} # 截断路径中的/AService/部分
 ```
 
-a-service服务下的requestPath
-b-service服务下的requestPath
-c-service服务下的requestPath
-d-service服务下的requestPath
-e-service服务下的requestPath
-f-service服务下的requestPath
-
 由于服务前缀，无论是在测试环境，还是在本地联调，都应该是相同的，因此方式2是最方便的，也是最贴近线上测试环境的本地联调方案
 
 ![gateway.png](./pic/gateway.png)
