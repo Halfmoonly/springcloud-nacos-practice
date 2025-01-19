@@ -1,70 +1,3 @@
-# spring-cloud-alibaba-practice
-环境说明：
-- springboot3.0
-- spring.cloud.alibaba 2022.0.0.0-RC2
-- spring.cloud 2022.0.0
-
-# module: intervene-nacos 如何提前干预nacos服务的注册行为
-
-## 背景描述：
-
-业务中使用spring-cloud-alibaba技术方案：nacos、gateway、feign
-
-我们正在做的项目设计了如下服务
-- A
-- B
-- C
-- D
-- E
-- F
-- ...，
-
-该项目适配了租户权限管理系统，租户权限管理系统只有如下服务：
-- M
-
-服务A、B、C、D、E、F通过Feign远程调用来与M做集成
-
-服务A、B、C、D、E、F以及M公用同一个网关gateway
-
-因此A、B、C、D、E、F以及M和gateway，必须在同一nacos命名空间下，假如都在测试环境命名空间
-
-## 前后端联调：
-由于在开发阶段，频繁的通过部署测试环境来测试功能正常，是效率十分低的，
-
-因此我们最好是先在本地进行前后端联调，最后在部署测试环境，有如下两种方式：
-
-### 方式1
-前端绕开网关，通过`ip:port/requestPath`的方式直连本地的服务A、B、C、D、E、F
-
-这种方式的好处是：
-1. 由于绕开了网关，因此前端访问接口的时候不用加服务前缀，以如下形式直连具体的后端服务
-  - `ip:Aport/requestPath`
-  - `ip:Bport/requestPath`
-  - `ip:Cport/requestPath`
-  - `ip:Dport/requestPath`
-  - `ip:Eport/requestPath`
-  - `ip:Fport/requestPath`
-    这种方式不好，原因是：
-1. 后端A、B、C、D、E、F服务众多，涉及不同类别的接口的时候，前端要频繁修改port
-
-### 方式2
-我们希望前端依旧通过测试环境网关访问后端服务A、B、C、D、E、F，由于测试环境网关独一份，因此对于前端来说，ip和port都是固定的，根本不用修改
-
-前端请求先加一层壳`/api`，再加上第二层壳即不同的服务前缀，如`/AService`：
-
-- `nginx-ip:nginx-port/api/AService/requestPath`
-- `nginx-ip:nginx-port/api/BService/requestPath`
-- `nginx-ip:nginx-port/api/CService/requestPath`
-- `nginx-ip:nginx-port/api/DService/requestPath`
-- `nginx-ip:nginx-port/api/EService/requestPath`
-- `nginx-ip:nginx-port/api/FService/requestPath`
-
-经过nginx去掉第一层壳`/api`,并转发给网关
-
-- `gateway-ip:gateway-port/AService/requestPath`
-- `gateway-ip:gateway-port/BService/requestPath`
-- `gateway-ip:gateway-port/CService/requestPath`
-- `gateway-ip:gateway-port/DService/requestPath`
 - `gateway-ip:gateway-port/EService/requestPath`
 - `gateway-ip:gateway-port/FService/requestPath`
 
@@ -94,11 +27,12 @@ spring:
 
 ![gateway.png](./pic/gateway.png)
 
-## 需求提出
+## 需求
 本地后端服务和测试环境后端服务，启动之后，会以服务实例的形式同时存在于nacos测试命名空间，这就会造成同一个服务出现负载均衡的情况，如果是在多人协作开发情况下，不同人的服务代码都在修改版本各不一致，负载均衡就会对测试环境的前端请求造成严重的情况，有可能路由到了不可用的本地服务
 
 如何避免这种情况？
-### 方式1：更换命名空间
+
+### 设想1：更换命名空间
 在nacos上创建新的命名空间，如temp，本地启动后端的时候，修改配置文件中的命名空间id为temp空间的id，将本地启动的后端服务注册到temp空间
 
 但是我们还需要在temp中部署新的gateway服务和租户权限管理服务M，缺点如下：
@@ -106,7 +40,7 @@ spring:
 - 前端需要修改gateway-ip:port，增加了修改量,还要记得不要提交，谁手滑提交了就要请喝茶
 - 最无法避免的情况是，由于测试环境资源吃紧，运维不允许部署多份gateway服务和租户权限管理服务M
 
-### 方式2：基于EnvironmentPostProcessor
+### 设想2：基于EnvironmentPostProcessor
 
 基于EnvironmentPostProcessor接口和springboot的SPI机制
 
@@ -118,7 +52,9 @@ local-AService-本地ip后缀，之所以加本地ip后缀，是为了在协作�
 
 现在，前端只需要将服务前缀修改为local-AService-本地ip后缀即可，后端不用做任何修改，即可通过网关的方式进行本地的前后端联调！
 
-## 基于EnvironmentPostProcessor的具体实现
+## 实现
+
+### 基于EnvironmentPostProcessor的具体实现
 
 ### 注册中心
 - nacos的配置信息一般写在bootstrap.yml中，要开启bootstrap.yml我们需要引入spring-cloud-starter-bootstrap依赖
@@ -140,3 +76,13 @@ local-AService-本地ip后缀，之所以加本地ip后缀，是为了在协作�
 同时我们在本地创建[application-local.yml](src%2Fmain%2Fresources%2Fapplication-local.yml)，本地的application-local.yml不需要以yaml结尾
 
 现在我们就可以激活指定的profile：local/test来切换不同环境的配置文件了，同时[bootstrap.yml](src%2Fmain%2Fresources%2Fbootstrap.yml)是所有环境公用的配置文件
+
+# 题外话，如何进行远程业务代码调试
+很多时候我们需要复现线上bug，这个时候必须使用线上相关的上下游数据，模拟真实的线上环境，此时如何对线上的服务进行远程调试
+- 关闭EnvironmentPostProcessor
+- 以local的方式启动本地服务，并注册到nacos
+- 在nacos服务列表面板根据服务实例ip区分，下线线上服务
+- 在nacos服务列表面板根据服务实例ip区分，上线自己的本地服务
+- 本地代码打上断点
+
+即可
